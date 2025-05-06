@@ -123,8 +123,8 @@ return s.x;
 
     @Test public void testInt10() {
         CodeGen code = new CodeGen("flt x = 1.5; x++; int i = x; return i;");
-        try { code.parse().opto(); fail(); }
-        catch( Exception e ) { assertEquals("Type 2.5f is not of declared type int",e.getMessage()); }
+        try { code.parse().opto().typeCheck(); fail(); }
+        catch( Exception e ) { assertEquals("Type 2.5f is not of declared type i64",e.getMessage()); }
     }
 
 
@@ -170,13 +170,13 @@ return s.x;
     }
 
     @Test public void testVar6() {
-        CodeGen code = new CodeGen("struct S{int x;}; S s=new S; s.x++; return s.x; // Error initializer so x is immutable ");
+        CodeGen code = new CodeGen("struct S{int x;}; ~S s = new S; s.x++; return s.x; // Error initializer so x is immutable ");
         try { code.parse().opto().typeCheck(); fail(); }
         catch( Exception e ) { assertEquals("Cannot modify final field 'x'",e.getMessage()); }
     }
 
     @Test public void testVar7() {
-        CodeGen code = new CodeGen("struct S{int x;}; S s=new S{x=3;}; s.x++; return s.x; // Error initializer so x is immutable ");
+        CodeGen code = new CodeGen("struct S{int x;}; ~S s = new S{x=3;}; s.x++; return s.x; // Error initializer so x is immutable ");
         try { code.parse().opto().typeCheck(); fail(); }
         catch( Exception e ) { assertEquals("Cannot modify final field 'x'",e.getMessage()); }
     }
@@ -214,6 +214,7 @@ foo.bar.x++;   // Ok foo and foo.bar and foo.bar.x are all mutable
 
 ~Foo xfoo = foo; // Throw away mutability
 xfoo.bar.x++;   // Error, cannot mutate through xfoo
+return xfoo.bar.x;
  """);
         try { code.parse().opto().typeCheck(); fail(); }
         catch( Exception e ) { assertEquals("Cannot modify final field 'x'",e.getMessage()); }
@@ -274,7 +275,7 @@ return new A {
     if (arg) b = new B; // Constructor ends with partial init of b
 }.b;
 """);
-        try { code.parse().opto(); fail(); }
+        try { code.parse(); fail(); }
         catch( Exception e ) { assertEquals("'A' is not fully initialized, field 'b' needs to be set in a constructor",e.getMessage()); }
     }
 
@@ -284,7 +285,7 @@ return new A {
 """
 struct S{};
 val x = 1;
-val s = new S{x = 2;};
+~S s = new S{x = 2;};
 return x;
 """
 );
@@ -307,7 +308,7 @@ focus(me);
 return me;
 """
 );
-        try { code.parse().opto().typeCheck(); fail(); }
+        try { code.parse(); fail(); }
         catch( Exception e ) { assertEquals("Syntax error, expected =expression: ;",e.getMessage()); }
     }
 
@@ -491,15 +492,15 @@ return new A;
     @Test
     public void testForward1() {
         CodeGen code = new CodeGen("""
-struct A{
+struct A {
     !B?[]? !nil_array_of_b;
-    !B?[]  not_array_of_b = new !B?[0];
+    !B?[] !array_of_b;
 };
-return new A.not_array_of_b;
+return new A{array_of_b = new !B?[0]; }.array_of_b;
 """);
         code.parse().opto();
-        assertEquals("return [*B?];", code.print());
-        assertEquals("*B?[]", Eval2.eval(code,0));
+        assertEquals("return []*B?;", code.print());
+        assertEquals("*B {... }?[]", Eval2.eval(code,0));
     }
 
     // ---------------------------------------------------------------
@@ -548,8 +549,8 @@ for( int j=0; j<nprimes; j++ )
 return rez;
 """);
         code.parse().opto().typeCheck().GCM();
-        assertEquals("return [int];", code.print());
-        assertEquals("int[ 2,3,5,7,11,13,17,19]",Eval2.eval(code, 20));
+        assertEquals("return []i64;", code.print());
+        assertEquals("i64[ 2,3,5,7,11,13,17,19]",Eval2.eval(code, 20));
     }
 
 }
